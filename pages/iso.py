@@ -7,6 +7,7 @@ import plotly.express as px
 import plotly.io as pio
 import plotly.graph_objects as go
 from whitenoise import WhiteNoise
+import numpy as np
 
 print('--- Restart ---')
 
@@ -186,6 +187,7 @@ layout = html.Div([
                                html.Div(id=f'a_{name_suffix}', children=[
                                    dcc.Dropdown(['NEB-CI', 'Distance H-H', 'Distance H-N', 'Distance H-stator', 'Distance tail-H', 'Distance tail-N', 'Distance tail-stator', 'dihedral-0', 'dihedral-1',
                                                  'dihedral-2', 'dihedral-3'], 'NEB-CI', id=f'mode-dropdown_{name_suffix}'),
+                                   dcc.Dropdown(['Cis', 'TS', 'Trans'], 'Cis', id=f'energy-dropdown_{name_suffix}', style={"visibility": "visible"}),
                                    dcc.Graph(figure={}, id=f'plots_{name_suffix}', responsive=True, style={
                                        # "min-height":"0",
                                        # "flex-grow":"1"
@@ -203,9 +205,16 @@ def update_plot():
     if mode_selected is None:
         pass
     elif mode_selected == 'NEB-CI':
+        print(f'{energy_mode_selected = }')
         for index in molecules_selected:
             print(f'{index = }')
-            fig.add_scatter(x=df_CI_x[f'{index}'].values,y=df_CI[f'{index}'].values, name=f'{index}', line=dict(
+            if energy_mode_selected == 'Cis':
+                e0=df_CI[f'{index}'].values[0]
+            elif energy_mode_selected == 'TS':
+                e0=np.max(df_CI[f'{index}'])
+            else:
+                e0=df_CI[f'{index}'].values[-1]
+            fig.add_scatter(x=df_CI_x[f'{index}'].values,y=df_CI[f'{index}'].values-e0, name=f'{index}', line=dict(
                 color=color_pallete[index % len(color_pallete)]))
 
         fig.update_xaxes(range=(0, 1))
@@ -398,23 +407,27 @@ def update_plot():
 
 
 @ callback(
-    Output(component_id=f'plots_{name_suffix}', component_property='figure'),
+    Output(component_id=f'plots_{name_suffix}', component_property='figure'), Output(component_id=f'energy-dropdown_{name_suffix}', component_property='style'),
     *[Output(component_id=f'{i}_{name_suffix}', component_property='style')
       for i in df_pictures.index],
-    Input(f'mode-dropdown_{name_suffix}', 'value'),
+    Input(f'mode-dropdown_{name_suffix}', 'value'), Input(f'energy-dropdown_{name_suffix}', 'value'),
     *[Input(component_id=f'{i}_{name_suffix}', component_property='n_clicks') for i in df_pictures.index]
 )
 def update_graph(*args):
     global mode_selected
     global molecules_selected
+    global energy_mode_selected
     print(args)
     mode_selected = args[0]
+    energy_mode_selected = args[1]
     print(f'{mode_selected = }')
     molecules_selected = [index for i, index in zip(
-        args[1:], df_pictures.index) if i % 2]
+        args[2:], df_pictures.index) if i % 2]
     print(f'{molecules_selected = }')
     # fig = px.histogram(df, x='continent', y=col_chosen, histfunc='avg')
-    return update_plot(), *[{"width": "100px", "height": "120px", "border": f"2px {color_pallete[i%len(color_pallete)]} solid"} if i in molecules_selected else {"width": "100px", "height": "120px"} for i in df_pictures.index]
+    energy_choise_visibility = "visible" if mode_selected == 'NEB-CI' else "hidden"
+
+    return update_plot(), {"visibility": energy_choise_visibility}, *[{"width": "100px", "height": "120px", "border": f"2px {color_pallete[i%len(color_pallete)]} solid"} if i in molecules_selected else {"width": "100px", "height": "120px"} for i in df_pictures.index]
 
 
 # Run the app
